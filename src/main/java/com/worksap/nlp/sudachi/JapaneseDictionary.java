@@ -21,6 +21,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -39,14 +40,14 @@ import com.worksap.nlp.sudachi.dictionary.Grammar;
 import com.worksap.nlp.sudachi.dictionary.GrammarImpl;
 import com.worksap.nlp.sudachi.dictionary.LexiconSet;
 
-class JapaneseDictionary implements Dictionary {
+class JapaneseDictionary implements Dictionary, Serializable {
 
     Grammar grammar;
     LexiconSet lexicon;
     List<InputTextPlugin> inputTextPlugins;
     List<OovProviderPlugin> oovProviderPlugins;
     List<PathRewritePlugin> pathRewritePlugins;
-    List<MappedByteBuffer> buffers;
+    transient List<MappedByteBuffer> buffers;
 
     JapaneseDictionary() throws IOException {
         this(null, null);
@@ -58,9 +59,7 @@ class JapaneseDictionary implements Dictionary {
 
     JapaneseDictionary(String path, String jsonString) throws IOException {
         if (jsonString == null) {
-            try (InputStream input
-                 = SudachiCommandLine.class
-                 .getResourceAsStream("/sudachi.json")) {
+            try (InputStream input = SudachiCommandLine.class.getResourceAsStream("/sudachi.json")) {
                 jsonString = readAll(input);
             }
         }
@@ -69,8 +68,8 @@ class JapaneseDictionary implements Dictionary {
         buffers = new ArrayList<>();
 
         readSystemDictionary(settings.getPath("systemDict"));
-        for (EditConnectionCostPlugin p :
-                 settings.<EditConnectionCostPlugin>getPluginList("editConnectionCostPlugin")) {
+        for (EditConnectionCostPlugin p : settings
+                .<EditConnectionCostPlugin>getPluginList("editConnectionCostPlugin")) {
             p.setUp(grammar);
             p.edit(grammar);
         }
@@ -103,10 +102,8 @@ class JapaneseDictionary implements Dictionary {
             throw new IllegalArgumentException("system dictionary is not specified");
         }
         MappedByteBuffer bytes;
-        try (FileInputStream istream = new FileInputStream(filename);
-             FileChannel inputFile = istream.getChannel()) {
-            bytes = inputFile.map(FileChannel.MapMode.READ_ONLY, 0,
-                                  inputFile.size());
+        try (FileInputStream istream = new FileInputStream(filename); FileChannel inputFile = istream.getChannel()) {
+            bytes = inputFile.map(FileChannel.MapMode.READ_ONLY, 0, inputFile.size());
             bytes.order(ByteOrder.LITTLE_ENDIAN);
         }
         buffers.add(bytes);
@@ -131,10 +128,8 @@ class JapaneseDictionary implements Dictionary {
         }
 
         MappedByteBuffer bytes;
-        try (FileInputStream input = new FileInputStream(filename);
-             FileChannel inputFile = input.getChannel()) {
-            bytes = inputFile.map(FileChannel.MapMode.READ_ONLY, 0,
-                                  inputFile.size());
+        try (FileInputStream input = new FileInputStream(filename); FileChannel inputFile = input.getChannel()) {
+            bytes = inputFile.map(FileChannel.MapMode.READ_ONLY, 0, inputFile.size());
             bytes.order(ByteOrder.LITTLE_ENDIAN);
         }
         buffers.add(bytes);
@@ -146,17 +141,14 @@ class JapaneseDictionary implements Dictionary {
         }
         offset += header.storageSize();
 
-        DoubleArrayLexicon userLexicon
-            = new DoubleArrayLexicon(bytes, offset);
-        Tokenizer tokenizer
-            = new JapaneseTokenizer(grammar, lexicon,
-                                    inputTextPlugins, oovProviderPlugins,
-                                    Collections.emptyList());
+        DoubleArrayLexicon userLexicon = new DoubleArrayLexicon(bytes, offset);
+        Tokenizer tokenizer = new JapaneseTokenizer(grammar, lexicon, inputTextPlugins, oovProviderPlugins,
+                Collections.emptyList());
 
         userLexicon.calculateCost(tokenizer);
         lexicon.add(userLexicon);
     }
-    
+
     void readCharacterDefinition(String filename) throws IOException {
         if (grammar == null) {
             return;
@@ -177,9 +169,7 @@ class JapaneseDictionary implements Dictionary {
 
     @Override
     public Tokenizer create() {
-        return new JapaneseTokenizer(grammar, lexicon,
-                                     inputTextPlugins, oovProviderPlugins,
-                                     pathRewritePlugins);
+        return new JapaneseTokenizer(grammar, lexicon, inputTextPlugins, oovProviderPlugins, pathRewritePlugins);
     }
 
     @Override
@@ -194,7 +184,7 @@ class JapaneseDictionary implements Dictionary {
 
     static String readAll(InputStream input) throws IOException {
         try (InputStreamReader isReader = new InputStreamReader(input, StandardCharsets.UTF_8);
-             BufferedReader reader = new BufferedReader(isReader)) {
+                BufferedReader reader = new BufferedReader(isReader)) {
             StringBuilder sb = new StringBuilder();
             while (true) {
                 String line = reader.readLine();
@@ -216,7 +206,7 @@ class JapaneseDictionary implements Dictionary {
                 Method cleanMethod = cleaner.getClass().getMethod("clean");
                 cleanMethod.setAccessible(true);
                 cleanMethod.invoke(cleaner);
-            } catch(Exception e) {
+            } catch (Exception e) {
                 throw new RuntimeException("can not destroy direct buffer " + buffer, e);
             }
         }
